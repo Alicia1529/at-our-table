@@ -1,0 +1,42 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, Camera, Check, ChevronDown, Copy, Edit3, MapPin, MessageCircle, Plus, Utensils, Wine } from "lucide-react";
+import clsx from "clsx";
+import type { Dinner } from "@/lib/types";
+import { getWine, getWineExperience } from "@/lib/mock-data";
+import { AvatarStack, Pill } from "@/components/ui";
+import { VoiceNoteButton } from "@/components/voice-note-button";
+
+export function DinnerDetail({ dinner }: { dinner: Dinner }) {
+  const [tab, setTab] = useState<"plan" | "table" | "memory">("table");
+  const [ratings, setRatings] = useState<Record<string, number>>({ "pair-1": 4, "pair-2": 5, "pair-3": 5 });
+  const [copied, setCopied] = useState(false);
+  const copyLink = async () => { await navigator.clipboard?.writeText(`${window.location.origin}/share/demo-sunday-supper`); setCopied(true); window.setTimeout(() => setCopied(false), 1800); };
+
+  return <div className="mx-auto max-w-[1400px] px-4 py-5 sm:px-7 sm:py-8 xl:px-10">
+    <header><div className="flex items-center justify-between"><Link href="/journal" className="focus-ring inline-flex items-center gap-2 rounded-lg text-sm font-semibold text-[var(--muted)]"><ArrowLeft size={17} /> Journal</Link><div className="flex gap-2"><button onClick={copyLink} className="focus-ring inline-flex items-center gap-2 rounded-full border hairline bg-white/55 px-3 py-2 text-sm font-semibold">{copied ? <Check size={16} /> : <Copy size={16} />}<span className="hidden sm:inline">{copied ? "Copied" : "Share"}</span></button><button className="focus-ring inline-flex items-center gap-2 rounded-full bg-[var(--wine)] px-4 py-2 text-sm font-semibold text-white"><Edit3 size={15} /> Edit</button></div></div>
+      <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end"><div><div className="flex flex-wrap items-center gap-2"><Pill tone="olive">Remembered</Pill><span className="text-sm text-[var(--muted)]">September 13 · 6:30 PM</span></div><h1 className="font-editorial mt-3 max-w-4xl text-5xl leading-[.95] sm:text-6xl">{dinner.title}</h1><div className="mt-5 flex flex-wrap items-center gap-5 text-sm text-[var(--muted)]"><span className="inline-flex items-center gap-2"><MapPin size={16} />{dinner.venue}</span><AvatarStack names={dinner.guests} /></div></div><VoiceNoteButton /></div>
+    </header>
+
+    <div className="mt-8 flex border-b hairline" role="tablist">{(["plan", "table", "memory"] as const).map((item) => <button key={item} onClick={() => setTab(item)} className={clsx("focus-ring -mb-px border-b-2 px-4 py-3 text-sm font-bold capitalize", tab === item ? "border-[var(--wine)] text-[var(--wine)]" : "border-transparent text-[var(--muted)]")}>{item === "table" ? "At the table" : item}</button>)}</div>
+
+    {tab === "plan" && <PlanPanel dinner={dinner} />}
+    {tab === "memory" && <MemoryPanel dinner={dinner} />}
+    {tab === "table" && <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_330px]"><div className="space-y-4">{dinner.courses.map((course, index) => {
+      const pairing = dinner.pairings.find((item) => item.courseId === course.id); const experience = pairing && getWineExperience(pairing.wineExperienceId); const wine = experience && getWine(experience.wineId);
+      return <article key={course.id} className="rounded-2xl border hairline bg-white/55 p-5 sm:p-6"><div className="flex gap-4"><span className="font-editorial text-3xl text-[#b7a093]">{String(index + 1).padStart(2, "0")}</span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div><h2 className="font-editorial text-2xl sm:text-3xl">{course.title}</h2><p className="mt-1 text-sm text-[var(--muted)]">{course.description}</p></div><button className="focus-ring rounded-full p-2 text-[var(--muted)]"><ChevronDown size={18} /></button></div>
+        {wine ? <div className="mt-5 rounded-xl bg-[#efe4d4] p-4"><div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--wine)] text-white"><Wine size={17} /></span><div className="min-w-0 flex-1"><Link href={`/wines/${wine.id}`} className="font-bold text-[var(--wine)] hover:underline">{wine.producer} · {wine.vintage}</Link><p className="text-sm text-[var(--muted)]">{wine.cuvee}</p>{pairing && <p className="mt-3 border-l-2 border-[var(--tomato)] pl-3 text-sm italic leading-6">“{pairing.note}”</p>}</div></div>
+          {pairing && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t hairline pt-4"><span className="text-xs font-bold uppercase tracking-[.14em] text-[var(--muted)]">Your pairing rating</span><div className="flex gap-1" aria-label="Rate this pairing">{[1,2,3,4,5].map((value) => <button key={value} type="button" onClick={() => setRatings({ ...ratings, [pairing.id]: value })} aria-label={`${value} out of 5`} className={clsx("focus-ring grid size-8 place-items-center rounded-full border text-xs font-bold", value <= (ratings[pairing.id] ?? 0) ? "border-[var(--wine)] bg-[var(--wine)] text-white" : "hairline bg-white/60 text-[var(--muted)]")}>{value}</button>)}</div></div>}
+        </div> : <button className="focus-ring mt-5 inline-flex items-center gap-2 rounded-full border hairline px-4 py-2 text-sm font-bold text-[var(--wine)]"><Plus size={16} /> Pair a wine</button>}
+      </div></div></article>})}<button className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#bba99d] py-4 text-sm font-bold text-[var(--wine)]"><Plus size={17} /> Add another course</button></div>
+      <aside className="space-y-4"><div className="rounded-2xl bg-[var(--wine-deep)] p-5 text-white"><p className="text-xs font-bold uppercase tracking-[.18em] text-[#e8a78f]">Quick capture</p><h2 className="font-editorial mt-2 text-3xl">Don&apos;t lose the moment.</h2><div className="mt-5 grid grid-cols-2 gap-2"><button className="focus-ring flex flex-col items-center gap-2 rounded-xl bg-white/10 p-4 text-sm font-semibold hover:bg-white/15"><Camera size={20} /> Add photos</button><button className="focus-ring flex flex-col items-center gap-2 rounded-xl bg-white/10 p-4 text-sm font-semibold hover:bg-white/15"><MessageCircle size={20} /> Add note</button></div><div className="mt-3"><VoiceNoteButton /></div></div>
+        <div className="rounded-2xl border hairline bg-white/50 p-5"><div className="flex items-center justify-between"><h3 className="font-editorial text-2xl">Around the table</h3><span className="text-xs text-[var(--muted)]">3 notes</span></div><div className="mt-5 space-y-5">{dinner.ratings.map((rating) => <div key={rating.id} className="flex gap-3"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#d7c0a7] text-xs font-bold">{rating.personName[0]}</span><div><p className="text-sm"><strong>{rating.personName}</strong> rated it <strong>{rating.rating}/5</strong></p><p className="mt-1 text-sm leading-5 text-[var(--muted)]">{rating.note}</p></div></div>)}</div></div>
+      </aside></div>}
+  </div>;
+}
+
+function PlanPanel({ dinner }: { dinner: Dinner }) { return <div className="mt-7 grid gap-4 md:grid-cols-3"><SummaryCard icon={Utensils} label="Menu" value={`${dinner.courses.length} courses`} detail="Flexible until the last plate" /><SummaryCard icon={Wine} label="Wine" value={`${dinner.wineExperienceIds.length} bottles`} detail="Paired course by course" /><SummaryCard icon={Camera} label="Memories" value={`${dinner.photoCount} photos`} detail="Private to your space" /></div>; }
+function MemoryPanel({ dinner }: { dinner: Dinner }) { return <div className="mt-7 max-w-3xl rounded-2xl border hairline bg-white/55 p-6 sm:p-8"><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--tomato)]">The lasting note</p><blockquote className="font-editorial mt-4 text-3xl leading-tight">“{dinner.summary}”</blockquote><p className="mt-6 text-sm text-[var(--muted)]">Captured by Alicia · {dinner.photoCount} photos</p></div>; }
+function SummaryCard({ icon: Icon, label, value, detail }: { icon: typeof Utensils; label: string; value: string; detail: string }) { return <div className="rounded-2xl border hairline bg-white/55 p-5"><Icon size={20} className="text-[var(--tomato)]" /><p className="mt-5 text-xs font-bold uppercase tracking-[.15em] text-[var(--muted)]">{label}</p><p className="font-editorial mt-1 text-2xl">{value}</p><p className="mt-1 text-sm text-[var(--muted)]">{detail}</p></div>; }
