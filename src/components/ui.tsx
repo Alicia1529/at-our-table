@@ -9,7 +9,8 @@ export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: 
 }
 
 export function Rating({ value, label }: { value: number; label?: string }) {
-  return <span className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--wine)]"><Star size={14} fill="currentColor" />{value.toFixed(1)}{label && <span className="font-normal text-[var(--muted)]">{label}</span>}</span>;
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return <span className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--wine)]"><Star size={14} fill="currentColor" />{safeValue.toFixed(1)}{label && <span className="font-normal text-[var(--muted)]">{label}</span>}</span>;
 }
 
 export function AvatarStack({ names, limit = 4 }: { names: string[]; limit?: number }) {

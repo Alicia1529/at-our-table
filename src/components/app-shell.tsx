@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, Grape, Home, Plus, Settings, SlidersHorizontal, Utensils } from "lucide-react";
 import clsx from "clsx";
+import { useAppData } from "@/components/app-data-provider";
 
 const nav = [
   { href: "/", label: "Home", icon: Home },
@@ -14,6 +15,7 @@ const nav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { space, viewer } = useAppData();
   const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
@@ -34,8 +36,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Settings size={18} /> Space settings
           </Link>
           <div className="mt-5 flex items-center gap-3 px-3">
-            <div className="grid size-9 place-items-center rounded-full bg-[var(--tomato)] text-sm font-bold text-white">A</div>
-            <div><p className="text-sm font-semibold">Alicia</p><p className="text-xs text-[var(--muted)]">Our table</p></div>
+            <div className="grid size-9 place-items-center rounded-full bg-[var(--tomato)] text-sm font-bold text-white">{viewer.name[0]?.toUpperCase()}</div>
+            <div><p className="max-w-32 truncate text-sm font-semibold">{viewer.name}</p><p className="max-w-32 truncate text-xs text-[var(--muted)]">{space.name}</p></div>
           </div>
         </div>
       </aside>

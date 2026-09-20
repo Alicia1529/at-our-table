@@ -1,13 +1,18 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Camera, MapPin, Sparkles, Wine } from "lucide-react";
 import { AvatarStack, Pill, Rating } from "@/components/ui";
-import { dinners, wines } from "@/lib/mock-data";
+import { useAppData } from "@/components/app-data-provider";
 
 export default function HomePage() {
+  const { dinners, wines, ready, mode } = useAppData();
+  const featured = dinners.find((dinner) => dinner.status !== "remembered") ?? dinners[0];
+  if (!ready) return <div className="grid min-h-screen place-items-center text-sm text-[var(--muted)]">Opening the journal…</div>;
   return <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-7 sm:py-8 xl:px-10">
     <header className="mb-6 flex items-center justify-between lg:mb-8">
-      <div><p className="text-sm text-[var(--muted)]">Saturday, September 19</p><h1 className="font-editorial mt-1 text-3xl sm:text-4xl">Good evening, Alicia.</h1></div>
+      <div><p className="text-sm text-[var(--muted)]">Saturday, September 19 · {mode === "live" ? "Live space" : "Demo space"}</p><h1 className="font-editorial mt-1 text-3xl sm:text-4xl">Good evening, Alicia.</h1></div>
       <Link href="/dinners/new" className="focus-ring hidden rounded-full bg-[var(--wine)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--wine-deep)] sm:inline-flex">Plan a dinner</Link>
     </header>
 
@@ -18,9 +23,9 @@ export default function HomePage() {
         <div className="flex items-center justify-between"><Pill tone="wine">Next at our table</Pill><span className="text-xs uppercase tracking-[.16em] text-white/70">In 6 days</span></div>
         <div>
           <p className="mb-4 text-sm font-semibold text-[#f2b49f]">Friday · 7:30 PM</p>
-          <h2 className="font-editorial max-w-xl text-5xl leading-[.95] sm:text-6xl">A first night of autumn</h2>
-          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-3 text-sm text-white/80"><span className="inline-flex items-center gap-2"><MapPin size={16} /> Our place</span><span className="inline-flex items-center gap-2"><Wine size={16} /> 3 bottles waiting</span></div>
-          <div className="mt-7 flex items-center justify-between border-t border-white/20 pt-6"><AvatarStack names={["Alicia", "Maya", "Theo", "Jon", "Nina"]} /><Link href="/dinners/sunday-supper" className="focus-ring inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-[var(--wine)]">Open dinner <ArrowRight size={16} /></Link></div>
+          <h2 className="font-editorial max-w-xl text-5xl leading-[.95] sm:text-6xl">{featured?.title ?? "Plan the next dinner"}</h2>
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-3 text-sm text-white/80"><span className="inline-flex items-center gap-2"><MapPin size={16} /> {featured?.venue ?? "Your table"}</span><span className="inline-flex items-center gap-2"><Wine size={16} /> {featured?.wineExperienceIds.length ?? 0} bottles waiting</span></div>
+          <div className="mt-7 flex items-center justify-between border-t border-white/20 pt-6"><AvatarStack names={featured?.guests ?? ["Alicia"]} /><Link href={featured ? `/dinners/${featured.id}` : "/dinners/new"} className="focus-ring inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-[var(--wine)]">{featured ? "Open dinner" : "Plan dinner"} <ArrowRight size={16} /></Link></div>
         </div>
       </div>
     </section>
@@ -35,7 +40,7 @@ export default function HomePage() {
       </section>
 
       <aside className="rounded-2xl border hairline bg-[#efe3d2] p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--olive)]">Bottle to remember</p><h2 className="font-editorial mt-1 text-2xl">From your cellar notes</h2></div><Sparkles className="text-[var(--tomato)]" /></div>
-        <Link href={`/wines/${wines[0].id}`} className="focus-ring mt-6 block rounded-xl bg-[var(--wine-deep)] p-5 text-white"><p className="text-xs uppercase tracking-[.15em] text-white/55">{wines[0].region} · {wines[0].vintage}</p><h3 className="font-editorial mt-3 text-3xl">{wines[0].producer}</h3><p className="mt-1 text-sm text-white/75">{wines[0].cuvee}</p><div className="mt-6 flex items-end justify-between"><Rating value={4.8} /><span className="text-xs text-white/60">Opened 3 times</span></div></Link>
+        {wines[0] && <Link href={`/wines/${wines[0].id}`} className="focus-ring mt-6 block rounded-xl bg-[var(--wine-deep)] p-5 text-white"><p className="text-xs uppercase tracking-[.15em] text-white/55">{wines[0].region} · {wines[0].vintage}</p><h3 className="font-editorial mt-3 text-3xl">{wines[0].producer}</h3><p className="mt-1 text-sm text-white/75">{wines[0].cuvee}</p><div className="mt-6 flex items-end justify-between"><Rating value={4.8} /><span className="text-xs text-white/60">Opened {wines[0].bottlesOpened} times</span></div></Link>}
         <div className="mt-5 flex items-center gap-3 border-t hairline pt-5 text-sm text-[var(--muted)]"><Camera size={18} className="text-[var(--tomato)]" /><span>You added <strong className="text-[var(--ink)]">25 photos</strong> this month.</span></div>
       </aside>
     </div>
