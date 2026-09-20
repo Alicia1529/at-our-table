@@ -280,12 +280,12 @@ create trigger on_auth_user_created after insert on auth.users for each row exec
 
 create or replace function public.create_dinner_share_link(target_dinner_id uuid, link_expires_at timestamptz default null)
 returns text language plpgsql security definer set search_path = '' as $$
-declare raw_token text := encode(gen_random_bytes(32), 'hex'); target_space_id uuid;
+declare raw_token text := encode(extensions.gen_random_bytes(32), 'hex'); target_space_id uuid;
 begin
   select d.space_id into target_space_id from public.dinners d where d.id = target_dinner_id;
   if target_space_id is null or not private.is_space_member(target_space_id) then raise exception 'Dinner not found'; end if;
   insert into public.share_links(space_id, dinner_id, token_hash, created_by, expires_at)
-  values (target_space_id, target_dinner_id, encode(digest(raw_token, 'sha256'), 'hex'), auth.uid(), link_expires_at);
+  values (target_space_id, target_dinner_id, encode(extensions.digest(raw_token, 'sha256'), 'hex'), auth.uid(), link_expires_at);
   return raw_token;
 end;
 $$;
@@ -298,7 +298,7 @@ returns jsonb language sql security definer stable set search_path = '' as $$
     'wines', coalesce((select jsonb_agg(jsonb_build_object('producer', w.producer, 'cuvee', w.cuvee, 'vintage', w.vintage, 'serving_notes', we.serving_notes) order by we.opened_at) from public.wine_experiences we join public.wines w on w.id = we.wine_id where we.dinner_id = d.id), '[]'::jsonb)
   )
   from public.share_links sl join public.dinners d on d.id = sl.dinner_id
-  where sl.token_hash = encode(digest(raw_token, 'sha256'), 'hex') and sl.revoked_at is null and (sl.expires_at is null or sl.expires_at > now())
+  where sl.token_hash = encode(extensions.digest(raw_token, 'sha256'), 'hex') and sl.revoked_at is null and (sl.expires_at is null or sl.expires_at > now())
   limit 1;
 $$;
 
