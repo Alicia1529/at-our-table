@@ -2,11 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { dinners as seedDinners, wines as seedWines, wineExperiences as seedExperiences } from "@/lib/mock-data";
-import type { Course, Dinner, DinnerLocation, DinnerNote, DinnerPhoto, Pairing, ShareLink, TableSpace, VoiceNote, Wine, WineColor, WineExperience } from "@/lib/types";
+import type { Course, Dinner, DinnerLocation, DinnerNote, DinnerPhoto, Pairing, ShareLink, TableSpace, VoiceNote, Wine, WineDraft, WineExperience } from "@/lib/types";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 type DinnerDraft = { title: string; date: string; locationType: DinnerLocation; venue: string; guests: string[]; courses: string[] };
-type WineDraft = { producer: string; cuvee: string; vintage: number; region: string; country: string; grapes: string[]; color: WineColor };
 type AppState = { dinners: Dinner[]; wines: Wine[]; wineExperiences: WineExperience[]; space: TableSpace; shareLinks: ShareLink[] };
 type AppData = AppState & {
   ready: boolean; mode: "demo" | "live"; viewer: { id: string; name: string };
@@ -87,12 +86,23 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   }, [live]);
 
   const addWine = useCallback(async (draft: WineDraft) => {
-    let wineId = uid();
-    if (live) { const supabase = createClient(); const { data: userData } = await supabase.auth.getUser(); if (!userData.user) throw new Error("Sign in to add wine."); const { data, error } = await supabase.from("wines").insert({ space_id: state.space.id, created_by: userData.user.id, producer: draft.producer, cuvee: draft.cuvee, vintage: draft.vintage, region: draft.region, country: draft.country, grapes: draft.grapes, color: draft.color === "rosé" ? "rose" : draft.color }).select("id").single(); if (error) throw error; wineId = data.id; }
-    const wine: Wine = { id: wineId, ...draft, bottlesOpened: 0 }; setState((current) => ({ ...current, wines: [wine, ...current.wines] })); return wineId;
+    let wineId = uid(); let imageUrl: string | undefined;
+    if (live) {
+      const supabase = createClient(); const { data: userData } = await supabase.auth.getUser(); if (!userData.user) throw new Error("Sign in to add wine.");
+      const { data, error } = await supabase.from("wines").insert({ space_id: state.space.id, created_by: userData.user.id, producer: draft.producer, cuvee: draft.cuvee, vintage: draft.vintage, region: draft.region, country: draft.country, grapes: draft.grapes, color: draft.color === "rosé" ? "rose" : draft.color, reference_notes: draft.description, tasting_notes: draft.tastingNotes }).select("id").single(); if (error) throw error; wineId = data.id;
+      if (draft.labelFile) { const path = `${state.space.id}/wine-labels/${wineId}-${safeName(draft.labelFile.name)}`; const { error: uploadError } = await supabase.storage.from("dinner-media").upload(path, draft.labelFile); if (uploadError) throw uploadError; const { error: updateError } = await supabase.from("wines").update({ label_photo_path: path }).eq("id", wineId); if (updateError) throw updateError; const { data: signed } = await supabase.storage.from("dinner-media").createSignedUrl(path, 3600); imageUrl = signed?.signedUrl; }
+    } else if (draft.labelFile) imageUrl = await fileToDataUrl(draft.labelFile);
+    const { labelFile: _labelFile, ...profile } = draft; void _labelFile;
+    const wine: Wine = { id: wineId, ...profile, imageUrl, bottlesOpened: 0 }; setState((current) => ({ ...current, wines: [wine, ...current.wines] })); return wineId;
   }, [live, state.space.id]);
 
-  const updateWine = useCallback(async (id: string, draft: WineDraft) => { if (live) { const { error } = await createClient().from("wines").update({ producer: draft.producer, cuvee: draft.cuvee, vintage: draft.vintage, region: draft.region, country: draft.country, grapes: draft.grapes, color: draft.color === "rosé" ? "rose" : draft.color }).eq("id", id); if (error) throw error; } setState((current) => ({ ...current, wines: current.wines.map((wine) => wine.id === id ? { ...wine, ...draft } : wine) })); }, [live]);
+  const updateWine = useCallback(async (id: string, draft: WineDraft) => {
+    let imageUrl: string | undefined;
+    if (live) { const supabase = createClient(); const patch: Record<string, unknown> = { producer: draft.producer, cuvee: draft.cuvee, vintage: draft.vintage, region: draft.region, country: draft.country, grapes: draft.grapes, color: draft.color === "rosé" ? "rose" : draft.color, reference_notes: draft.description, tasting_notes: draft.tastingNotes }; if (draft.labelFile) { const path = `${state.space.id}/wine-labels/${id}-${safeName(draft.labelFile.name)}`; const { error: uploadError } = await supabase.storage.from("dinner-media").upload(path, draft.labelFile, { upsert: true }); if (uploadError) throw uploadError; patch.label_photo_path = path; const { data: signed } = await supabase.storage.from("dinner-media").createSignedUrl(path, 3600); imageUrl = signed?.signedUrl; } const { error } = await supabase.from("wines").update(patch).eq("id", id); if (error) throw error; }
+    else if (draft.labelFile) imageUrl = await fileToDataUrl(draft.labelFile);
+    const { labelFile: _labelFile, ...profile } = draft; void _labelFile;
+    setState((current) => ({ ...current, wines: current.wines.map((wine) => wine.id === id ? { ...wine, ...profile, imageUrl: imageUrl ?? wine.imageUrl } : wine) }));
+  }, [live, state.space.id]);
 
   const openWine = useCallback(async (dinnerId: string, wineId: string, servingNote = "") => {
     const existing = state.wineExperiences.find((experience) => experience.dinnerId === dinnerId && experience.wineId === wineId);
@@ -156,9 +166,9 @@ async function loadLiveState(): Promise<AppState | null> {
     supabase.from("spaces").select("id,name,tagline").eq("id", spaceId).single(), supabase.from("space_members").select("user_id,role").eq("space_id", spaceId), supabase.from("dinners").select("*").eq("space_id", spaceId).order("scheduled_at", { ascending: false }), supabase.from("dinner_guests").select("*").eq("space_id", spaceId), supabase.from("courses").select("*").eq("space_id", spaceId).order("position"), supabase.from("wines").select("*").eq("space_id", spaceId), supabase.from("wine_experiences").select("*").eq("space_id", spaceId), supabase.from("course_wine_pairings").select("*").eq("space_id", spaceId), supabase.from("ratings").select("*").eq("space_id", spaceId), supabase.from("dinner_notes").select("*").eq("space_id", spaceId), supabase.from("photos").select("*").eq("space_id", spaceId), supabase.from("voice_notes").select("*").eq("space_id", spaceId),
   ]);
   const rows = <T,>(result: { data: T[] | null }) => result.data ?? [];
-  const photoRows = rows<Record<string, unknown>>(photosResult); const voiceRows = rows<Record<string, unknown>>(voicesResult); const mediaPaths = [...photoRows, ...voiceRows].map((item) => String(item.storage_path)); const signedUrls = new Map<string, string>();
+  const photoRows = rows<Record<string, unknown>>(photosResult); const voiceRows = rows<Record<string, unknown>>(voicesResult); const wineRows = rows<Record<string, unknown>>(winesResult); const mediaPaths = [...photoRows, ...voiceRows, ...wineRows.filter((item) => item.label_photo_path)].map((item) => String(item.storage_path ?? item.label_photo_path)); const signedUrls = new Map<string, string>();
   if (mediaPaths.length) { const { data: signed } = await supabase.storage.from("dinner-media").createSignedUrls(mediaPaths, 3600); (signed ?? []).forEach((item) => { if (item.signedUrl && item.path) signedUrls.set(item.path, item.signedUrl); }); }
-  const wineList: Wine[] = rows<Record<string, unknown>>(winesResult).map((row) => ({ id: String(row.id), producer: String(row.producer), cuvee: String(row.cuvee ?? ""), vintage: Number(row.vintage ?? 0), region: String(row.region ?? ""), country: String(row.country ?? ""), grapes: (row.grapes as string[]) ?? [], color: row.color === "rose" ? "rosé" : row.color as WineColor, bottlesOpened: rows<Record<string, unknown>>(experiencesResult).filter((item) => item.wine_id === row.id).length }));
+  const wineList: Wine[] = wineRows.map((row) => ({ id: String(row.id), producer: String(row.producer), cuvee: String(row.cuvee ?? ""), vintage: Number(row.vintage ?? 0), region: String(row.region ?? ""), country: String(row.country ?? ""), grapes: (row.grapes as string[]) ?? [], color: row.color === "rose" ? "rosé" : row.color as Wine["color"], bottlesOpened: rows<Record<string, unknown>>(experiencesResult).filter((item) => item.wine_id === row.id).length, description: String(row.reference_notes ?? ""), tastingNotes: String(row.tasting_notes ?? ""), imageUrl: row.label_photo_path ? signedUrls.get(String(row.label_photo_path)) : undefined }));
   const allRatingRows = rows<Record<string, unknown>>(ratingsResult);
   const experienceList: WineExperience[] = rows<Record<string, unknown>>(experiencesResult).map((row) => { const experienceRatings = allRatingRows.filter((rating) => rating.wine_experience_id === row.id).map((rating) => Number(rating.rating)); return { id: String(row.id), wineId: String(row.wine_id), dinnerId: String(row.dinner_id ?? ""), openedAt: String(row.opened_at), servingNote: String(row.serving_notes ?? ""), rating: experienceRatings.length ? experienceRatings.reduce((sum, value) => sum + value, 0) / experienceRatings.length : 0 }; });
   const currentUserName = displayName(userData.user);

@@ -27,7 +27,7 @@ npm run build
 3. Apply every SQL file in `supabase/migrations` in filename order.
 4. Create `.env.local` from `.env.example`.
 
-The migration creates a private `dinner-media` bucket. Object paths must start with the space UUID: `<space-id>/<dinner-id>/<file>`.
+The migration creates a private `dinner-media` bucket. Object paths must start with the space UUID, for example `<space-id>/<dinner-id>/<file>` for dinner media or `<space-id>/wine-labels/<file>` for bottle labels.
 
 The database bootstrap automatically creates a private space for each new account. Invitations are email-bound, share tokens are stored as hashes, and anonymous share pages receive only a curated read-only payload—never direct table or Storage access.
 
@@ -36,10 +36,12 @@ The database bootstrap automatically creates a private space for each new accoun
 - Create home or restaurant dinners with any number of courses, guests, and starting wines.
 - Edit the same dinner before, during, and after the meal, including its courses and remembered status.
 - Keep canonical wine records separate from dinner-specific wine experiences.
+- Generate an explainable wine recommendation for each named course, then add the suggested bottle to the dinner.
+- Add personal bottles with a private label photo, editorial introduction, and reusable tasting notes.
 - Pair a dish to a wine explicitly, then save a member-specific 1–5 rating and notes.
 - Capture many private photos, browser-recorded voice notes, and quick written memories.
 - Search and filter the dinner journal and wine history; derive the shared taste view from saved data.
 - Manage space identity and members, accept private invitation links, and create read-only dinner share links.
-- Start a menu with a simple built-in suggestion; richer AI recommendations are intentionally outside V1.
+- Start a menu with a simple built-in suggestion; wine pairing uses transparent local rules so it works without an AI key. Remote wine-catalog enrichment remains a later integration.
 
 See [docs/BUILD_SPEC.md](docs/BUILD_SPEC.md) for scope and architectural decisions.
