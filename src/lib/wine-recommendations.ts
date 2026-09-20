@@ -7,6 +7,7 @@ export type WineRecommendation = {
   courseTitle: string;
   wine: Wine;
   why: string;
+  savedWineId?: string;
 };
 
 type PairingRule = {
