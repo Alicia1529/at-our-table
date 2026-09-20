@@ -3,7 +3,8 @@ export type DinnerStatus = "planning" | "happening" | "remembered";
 export type WineColor = "red" | "white" | "orange" | "rosé" | "sparkling";
 
 export interface Course { id: string; title: string; description: string; position: number; }
-export interface Wine { id: string; producer: string; cuvee: string; vintage: number; region: string; country: string; grapes: string[]; color: WineColor; bottlesOpened: number; }
+export interface Wine { id: string; producer: string; cuvee: string; vintage: number; region: string; country: string; grapes: string[]; color: WineColor; bottlesOpened: number; description: string; tastingNotes: string; imageUrl?: string; }
+export interface WineDraft { producer: string; cuvee: string; vintage: number; region: string; country: string; grapes: string[]; color: WineColor; description: string; tastingNotes: string; labelFile?: File; }
 export interface WineExperience { id: string; wineId: string; dinnerId: string; openedAt: string; servingNote: string; rating: number; }
 export interface Pairing { id: string; courseId: string; wineExperienceId: string; note: string; }
 export interface PersonRating { id: string; personId?: string; personName: string; targetType: "course" | "wine_experience" | "pairing"; targetId: string; rating: 1 | 2 | 3 | 4 | 5; note: string; }

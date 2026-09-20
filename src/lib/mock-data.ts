@@ -1,10 +1,10 @@
 import type { Dinner, Wine, WineExperience } from "@/lib/types";
 
 export const wines: Wine[] = [
-  { id: "tempier-bandol", producer: "Domaine Tempier", cuvee: "Bandol Rouge", vintage: 2019, region: "Bandol", country: "France", grapes: ["Mourvèdre", "Grenache"], color: "red", bottlesOpened: 3 },
-  { id: "lieser-riesling", producer: "Schloss Lieser", cuvee: "Niederberg Helden GG", vintage: 2021, region: "Mosel", country: "Germany", grapes: ["Riesling"], color: "white", bottlesOpened: 2 },
-  { id: "radikon-sivi", producer: "Radikon", cuvee: "Sivi", vintage: 2020, region: "Friuli-Venezia Giulia", country: "Italy", grapes: ["Pinot Grigio"], color: "orange", bottlesOpened: 1 },
-  { id: "laherte-freres", producer: "Laherte Frères", cuvee: "Ultradition", vintage: 2020, region: "Champagne", country: "France", grapes: ["Meunier", "Chardonnay"], color: "sparkling", bottlesOpened: 2 },
+  { id: "tempier-bandol", producer: "Domaine Tempier", cuvee: "Bandol Rouge", vintage: 2019, region: "Bandol", country: "France", grapes: ["Mourvèdre", "Grenache"], color: "red", bottlesOpened: 3, description: "A soulful Bandol built around Mourvèdre, with the depth and freshness to grow at the table.", tastingNotes: "Black plum, olive, leather, dried herbs, and savory spice." },
+  { id: "lieser-riesling", producer: "Schloss Lieser", cuvee: "Niederberg Helden GG", vintage: 2021, region: "Mosel", country: "Germany", grapes: ["Riesling"], color: "white", bottlesOpened: 2, description: "A dry Mosel Riesling from steep slate vineyards, precise and quietly powerful.", tastingNotes: "Lime, white peach, crushed slate, and a long saline finish." },
+  { id: "radikon-sivi", producer: "Radikon", cuvee: "Sivi", vintage: 2020, region: "Friuli-Venezia Giulia", country: "Italy", grapes: ["Pinot Grigio"], color: "orange", bottlesOpened: 1, description: "A skin-contact Pinot Grigio with texture, energy, and a deeply savory character.", tastingNotes: "Apricot skin, black tea, blood orange, and gentle tannin." },
+  { id: "laherte-freres", producer: "Laherte Frères", cuvee: "Ultradition", vintage: 2020, region: "Champagne", country: "France", grapes: ["Meunier", "Chardonnay"], color: "sparkling", bottlesOpened: 2, description: "A grower Champagne with orchard fruit, fine bubbles, and an easy place at the table.", tastingNotes: "Green apple, brioche, lemon zest, and a chalky finish." },
 ];
 
 export const wineExperiences: WineExperience[] = [
