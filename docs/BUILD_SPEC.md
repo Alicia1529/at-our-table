@@ -10,7 +10,7 @@ At Our Table is a private shared journal for people who remember dinners through
 - New dinner: location, date, guests, arbitrary course count, a lightweight menu suggestion scaffold, explainable course-level wine recommendations, and an optional starting wine list.
 - Dinner detail: Plan / At the table / Memory modes, mutable dinner and course details, explicit dish-to-wine pairings, member-specific 5-point ratings, photos, notes, and browser voice recording.
 - Journal feed: home/restaurant filtering and dinner history.
-- Wine journal and wine detail: canonical wine records with private label images, introductions, and tasting notes, plus every distinct opening experience.
+- Wine journal and wine detail: canonical wine records with private label images, introductions, and tasting notes, plus every distinct opening experience. A server-side vision endpoint can read up to two front/back label photos and prefill an editable wine draft.
 - Our Taste: explainable patterns derived from ratings and notes.
 - Space settings: shared-space identity, members, and privacy language.
 - Authentication and sharing: Google OAuth entry point and revocable read-only dinner links.
@@ -39,3 +39,5 @@ The app has two runtime modes behind one interface:
 - Live mode activates automatically when the two public Supabase variables are present. All product mutations use Postgres and private Storage under member-scoped RLS; Google OAuth protects application routes.
 
 V1 supplies deterministic menu suggestions and a transparent keyword-and-style wine matcher. Pairing recommendations are generated from the entered dish and the space's own wine journal, and always show a human-readable reason. The wine profile helper drafts editable introductions and tasting notes from user-entered bottle details; it does not pretend to identify a label or query an external catalog. Voice notes retain playable audio but are not transcribed. Invitations produce a secure private URL for the owner to send; transactional email delivery, remote wine-catalog enrichment, and model-backed recommendation quality are intentionally later work.
+
+Wine-photo entry is the exception to the otherwise local recommendation layer: when `OPENAI_API_KEY` is configured, an authenticated server route sends only the photos selected for that scan to a vision-capable Responses API model with `store: false`. JSON Schema constrains the response, uncertain identity fields stay blank, and the person must review the draft before it becomes a canonical `Wine` record.

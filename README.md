@@ -14,6 +14,8 @@ npm run dev
 
 With no environment variables, the app runs as a fully interactive demo and persists dinners, wines, ratings, notes, photos, invitations, shares, and preferences in the browser. Add a Supabase project URL and publishable key to switch to Google sign-in, Postgres, private Storage, and row-level security.
 
+Add the server-only `OPENAI_API_KEY` value to enable **Scan wine label**. The browser sends up to two user-selected front/back photos to the app's authenticated API route; the route extracts editable wine fields with image input and structured output. The key is never sent to the browser. `OPENAI_WINE_MODEL` can optionally override the default `gpt-5-mini` model.
+
 ```bash
 npm run typecheck
 npm run lint
@@ -38,6 +40,7 @@ The database bootstrap automatically creates a private space for each new accoun
 - Keep canonical wine records separate from dinner-specific wine experiences.
 - Generate an explainable wine recommendation for each named course, then add the suggested bottle to the dinner.
 - Add personal bottles with a private label photo, editorial introduction, and reusable tasting notes.
+- Scan one or two bottle photos to prefill producer, cuvée, vintage, origin, grapes, color, introduction, and provisional tasting notes; every result remains editable before saving.
 - Pair a dish to a wine explicitly, then save a member-specific 1–5 rating and notes.
 - Capture many private photos, browser-recorded voice notes, and quick written memories.
 - Search and filter the dinner journal and wine history; derive the shared taste view from saved data.
