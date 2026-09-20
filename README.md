@@ -26,7 +26,7 @@ npm run build
 
 1. Create a Supabase project and enable the Google provider.
 2. Add `http://localhost:3000/auth/callback` and the production callback URL to the redirect allow list.
-3. Apply every SQL file in `supabase/migrations` in filename order.
+3. Link and publish the migrations with `npx supabase link --project-ref <project-ref>`, then `npx supabase db push --dry-run` and `npx supabase db push`.
 4. Create `.env.local` from `.env.example`.
 
 The migration creates a private `dinner-media` bucket. Object paths must start with the space UUID, for example `<space-id>/<dinner-id>/<file>` for dinner media or `<space-id>/wine-labels/<file>` for bottle labels.
@@ -44,6 +44,7 @@ The database bootstrap automatically creates a private space for each new accoun
 - Pair a dish to a wine explicitly, then save a member-specific 1–5 rating and notes.
 - Capture many private photos, browser-recorded voice notes, and quick written memories.
 - Search and filter the dinner journal and wine history; derive the shared taste view from saved data.
+- See every dinner's bottles in a dedicated wine-list tab, with its date, time, serving note, and course pairings.
 - Manage space identity and members, accept private invitation links, and create read-only dinner share links.
 - Start a menu with a simple built-in suggestion; wine pairing uses transparent local rules so it works without an AI key. Remote wine-catalog enrichment remains a later integration.
 
