@@ -8,7 +8,7 @@ import { useAppData } from "@/components/app-data-provider";
 import { formatDinnerDateTime, formatDinnerDay } from "@/lib/date-format";
 
 export default function HomePage() {
-  const { dinners, wines, ready, mode } = useAppData();
+  const { dinners, wines, ready, mode, viewer } = useAppData();
   const featured = dinners.find((dinner) => dinner.coverImage !== "/table-hero.jpg")
     ?? dinners.find((dinner) => dinner.status !== "remembered")
     ?? dinners[0];
@@ -16,7 +16,7 @@ export default function HomePage() {
   if (!ready) return <div className="grid min-h-screen place-items-center text-sm text-[var(--muted)]">Opening the journal…</div>;
   return <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-7 sm:py-8 xl:px-10">
     <header className="mb-6 flex items-center justify-between lg:mb-8">
-      <div><p className="text-sm text-[var(--muted)]">{formatDinnerDay(new Date().toISOString())} · {mode === "live" ? "Live space" : "Demo space"}</p><h1 className="font-editorial mt-1 text-3xl sm:text-4xl">Good evening, Alicia.</h1></div>
+      <div><p className="text-sm text-[var(--muted)]">{formatDinnerDay(new Date().toISOString())} · {mode === "live" ? "Live space" : "Demo space"}</p><h1 className="font-editorial mt-1 text-3xl sm:text-4xl">Good evening, {viewer.name}.</h1></div>
       <Link href="/dinners/new" className="focus-ring hidden rounded-full bg-[var(--wine)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--wine-deep)] sm:inline-flex">Plan a dinner</Link>
     </header>
 
