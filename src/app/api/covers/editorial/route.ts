@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -40,10 +41,23 @@ export async function POST(request: Request) {
   if (downloadError || !source) return NextResponse.json({ error: "The selected photo could not be opened." }, { status: 502 });
   if (!allowedTypes.has(source.type) || source.size > maxPhotoBytes) return NextResponse.json({ error: "Choose a JPEG, PNG, or WebP photo smaller than 20 MB." }, { status: 400 });
 
+  let normalizedSource: Buffer;
+  try {
+    normalizedSource = await sharp(Buffer.from(await source.arrayBuffer()))
+      .rotate()
+      .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#f3f0e8" })
+      .toColourspace("srgb")
+      .png()
+      .toBuffer();
+  } catch {
+    return NextResponse.json({ error: "This photo could not be decoded. Try exporting it as a standard JPEG or PNG." }, { status: 400 });
+  }
+
   const form = new FormData();
   form.append("model", process.env.OPENAI_IMAGE_MODEL || "gpt-image-2.5-sunburst");
-  const extension = source.type === "image/png" ? "png" : source.type === "image/webp" ? "webp" : "jpg";
-  form.append("image[]", new File([source], `dinner-photo.${extension}`, { type: source.type }));
+  const normalizedBytes = Uint8Array.from(normalizedSource);
+  form.append("image[]", new Blob([normalizedBytes], { type: "image/png" }), "dinner-photo.png");
   form.append("prompt", editorialPrompt);
   form.append("size", "1536x1024");
   form.append("quality", "medium");
