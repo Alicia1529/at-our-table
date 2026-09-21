@@ -78,7 +78,22 @@ export async function POST(request: Request) {
   if (!encoded) return NextResponse.json({ error: "The editorial cover service returned no image." }, { status: 502 });
 
   const coverPath = `${dinner.space_id}/${dinner.id}/covers/${crypto.randomUUID()}.webp`;
-  const coverBytes = Buffer.from(encoded, "base64");
+  let coverBytes: Buffer;
+  try {
+    const generated = sharp(Buffer.from(encoded, "base64"));
+    const metadata = await generated.metadata();
+    if (!metadata.width || !metadata.height) throw new Error("Missing generated image dimensions.");
+
+    // The skill creates a faithful photo + abstract memory panel. At Our Table
+    // uses only that lower panel as the reusable journal cover.
+    const panelHeight = Math.max(1, Math.round(metadata.height / 3));
+    coverBytes = await generated
+      .extract({ left: 0, top: metadata.height - panelHeight, width: metadata.width, height: panelHeight })
+      .webp({ quality: 92 })
+      .toBuffer();
+  } catch {
+    return NextResponse.json({ error: "The generated editorial panel could not be prepared." }, { status: 502 });
+  }
   const { error: uploadError } = await supabase.storage.from("dinner-media").upload(coverPath, coverBytes, { contentType: "image/webp" });
   if (uploadError) return NextResponse.json({ error: "The generated cover could not be saved." }, { status: 502 });
 
