@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { dinners as seedDinners, wines as seedWines, wineExperiences as seedExperiences } from "@/lib/mock-data";
 import type { Course, Dinner, DinnerLocation, DinnerNote, DinnerPhoto, Pairing, ShareLink, TableSpace, VoiceNote, Wine, WineDraft, WineExperience } from "@/lib/types";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { fromDatetimeLocal } from "@/lib/date-format";
 
 type DinnerDraft = { title: string; date: string; locationType: DinnerLocation; venue: string; guests: string[]; courses: string[] };
 type AppState = { dinners: Dinner[]; wines: Wine[]; wineExperiences: WineExperience[]; space: TableSpace; shareLinks: ShareLink[] };
@@ -13,6 +14,7 @@ type AppData = AppState & {
   updateDinner: (id: string, patch: Partial<Pick<Dinner, "title" | "date" | "locationType" | "venue" | "guests" | "summary" | "status">>) => Promise<void>;
   addCourse: (dinnerId: string, title: string, description?: string) => Promise<void>;
   updateCourse: (dinnerId: string, courseId: string, title: string, description?: string) => Promise<void>;
+  deleteCourse: (dinnerId: string, courseId: string) => Promise<void>;
   addWine: (draft: WineDraft) => Promise<string>;
   updateWine: (id: string, draft: WineDraft) => Promise<void>;
   openWine: (dinnerId: string, wineId: string, servingNote?: string) => Promise<string>;
@@ -57,28 +59,29 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (ready && !live) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }, [live, ready, state]);
 
   const createDinner = useCallback(async (draft: DinnerDraft) => {
-    const localId = uid(); let dinnerId = localId; let createdCourses: Course[] = draft.courses.map((title, index) => ({ id: uid(), title, description: "", position: index + 1 }));
+    const localId = uid(); const scheduledAt = fromDatetimeLocal(draft.date); let dinnerId = localId; let createdCourses: Course[] = draft.courses.map((title, index) => ({ id: uid(), title, description: "", position: index + 1 }));
     if (live) {
       const supabase = createClient(); const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Sign in to create a dinner.");
-      const { data, error } = await supabase.from("dinners").insert({ space_id: state.space.id, created_by: userData.user.id, title: draft.title, scheduled_at: draft.date, location_type: draft.locationType, venue_name: draft.venue, status: "planning" }).select("id").single();
+      const { data, error } = await supabase.from("dinners").insert({ space_id: state.space.id, created_by: userData.user.id, title: draft.title, scheduled_at: scheduledAt, location_type: draft.locationType, venue_name: draft.venue, status: "planning" }).select("id").single();
       if (error) throw error; dinnerId = data.id;
       if (draft.guests.length) { const { error: guestError } = await supabase.from("dinner_guests").insert(draft.guests.map((name) => ({ space_id: state.space.id, dinner_id: dinnerId, display_name: name }))); if (guestError) throw guestError; }
       if (draft.courses.length) { const { data: courseData, error: courseError } = await supabase.from("courses").insert(draft.courses.map((title, index) => ({ space_id: state.space.id, dinner_id: dinnerId, position: index + 1, title }))).select("id,title,description,position"); if (courseError) throw courseError; createdCourses = (courseData ?? []).map((course) => ({ id: course.id, title: course.title, description: course.description ?? "", position: course.position })); }
     }
-    const dinner: Dinner = { id: dinnerId, title: draft.title, date: draft.date, locationType: draft.locationType, venue: draft.venue, status: "planning", guests: draft.guests, summary: "", coverImage: "/table-hero.jpg", courses: createdCourses, wineExperienceIds: [], pairings: [], ratings: [], photoCount: 0, notes: [], photos: [], voiceNotes: [] };
+    const dinner: Dinner = { id: dinnerId, title: draft.title, date: scheduledAt, locationType: draft.locationType, venue: draft.venue, status: "planning", guests: draft.guests, summary: "", coverImage: "/table-hero.jpg", courses: createdCourses, wineExperienceIds: [], pairings: [], ratings: [], photoCount: 0, notes: [], photos: [], voiceNotes: [] };
     setState((current) => ({ ...current, dinners: [dinner, ...current.dinners] })); return dinnerId;
   }, [live, state.space.id]);
 
   const updateDinner = useCallback(async (id: string, patch: Partial<Pick<Dinner, "title" | "date" | "locationType" | "venue" | "guests" | "summary" | "status">>) => {
-    if (live) { const supabase = createClient(); const dbPatch = { ...(patch.title !== undefined && { title: patch.title }), ...(patch.date !== undefined && { scheduled_at: patch.date }), ...(patch.locationType !== undefined && { location_type: patch.locationType }), ...(patch.venue !== undefined && { venue_name: patch.venue }), ...(patch.summary !== undefined && { summary: patch.summary }), ...(patch.status !== undefined && { status: patch.status }) }; const { error } = await supabase.from("dinners").update(dbPatch).eq("id", id); if (error) throw error; if (patch.guests !== undefined) { const { error: deleteError } = await supabase.from("dinner_guests").delete().eq("dinner_id", id); if (deleteError) throw deleteError; if (patch.guests.length) { const { error: guestError } = await supabase.from("dinner_guests").insert(patch.guests.map((displayName) => ({ space_id: state.space.id, dinner_id: id, display_name: displayName }))); if (guestError) throw guestError; } } }
-    setState((current) => ({ ...current, dinners: current.dinners.map((dinner) => dinner.id === id ? { ...dinner, ...patch } : dinner) }));
+    const normalizedPatch = patch.date === undefined ? patch : { ...patch, date: fromDatetimeLocal(patch.date) };
+    if (live) { const supabase = createClient(); const dbPatch = { ...(normalizedPatch.title !== undefined && { title: normalizedPatch.title }), ...(normalizedPatch.date !== undefined && { scheduled_at: normalizedPatch.date }), ...(normalizedPatch.locationType !== undefined && { location_type: normalizedPatch.locationType }), ...(normalizedPatch.venue !== undefined && { venue_name: normalizedPatch.venue }), ...(normalizedPatch.summary !== undefined && { summary: normalizedPatch.summary }), ...(normalizedPatch.status !== undefined && { status: normalizedPatch.status }) }; const { error } = await supabase.from("dinners").update(dbPatch).eq("id", id); if (error) throw error; if (normalizedPatch.guests !== undefined) { const { error: deleteError } = await supabase.from("dinner_guests").delete().eq("dinner_id", id); if (deleteError) throw deleteError; if (normalizedPatch.guests.length) { const { error: guestError } = await supabase.from("dinner_guests").insert(normalizedPatch.guests.map((displayName) => ({ space_id: state.space.id, dinner_id: id, display_name: displayName }))); if (guestError) throw guestError; } } }
+    setState((current) => ({ ...current, dinners: current.dinners.map((dinner) => dinner.id === id ? { ...dinner, ...normalizedPatch } : dinner) }));
   }, [live, state.space.id]);
 
   const addCourse = useCallback(async (dinnerId: string, title: string, description = "") => {
-    const dinner = state.dinners.find((item) => item.id === dinnerId); if (!dinner) return; let courseId = uid();
-    if (live) { const { data, error } = await createClient().from("courses").insert({ space_id: state.space.id, dinner_id: dinnerId, position: dinner.courses.length + 1, title, description }).select("id").single(); if (error) throw error; courseId = data.id; }
-    const course: Course = { id: courseId, title, description, position: dinner.courses.length + 1 };
+    const dinner = state.dinners.find((item) => item.id === dinnerId); if (!dinner) return; const position = Math.max(0, ...dinner.courses.map((course) => course.position)) + 1; let courseId = uid();
+    if (live) { const { data, error } = await createClient().from("courses").insert({ space_id: state.space.id, dinner_id: dinnerId, position, title, description }).select("id").single(); if (error) throw error; courseId = data.id; }
+    const course: Course = { id: courseId, title, description, position };
     setState((current) => ({ ...current, dinners: current.dinners.map((item) => item.id === dinnerId ? { ...item, courses: [...item.courses, course] } : item) }));
   }, [live, state.dinners, state.space.id]);
 
@@ -86,6 +89,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (live) { const { error } = await createClient().from("courses").update({ title, description }).eq("id", courseId); if (error) throw error; }
     setState((current) => ({ ...current, dinners: current.dinners.map((dinner) => dinner.id === dinnerId ? { ...dinner, courses: dinner.courses.map((course) => course.id === courseId ? { ...course, title, description } : course) } : dinner) }));
   }, [live]);
+
+  const deleteCourse = useCallback(async (dinnerId: string, courseId: string) => {
+    if (live) { const { error } = await createClient().from("courses").delete().eq("id", courseId).eq("dinner_id", dinnerId).eq("space_id", state.space.id); if (error) throw error; }
+    setState((current) => ({ ...current, dinners: current.dinners.map((dinner) => { if (dinner.id !== dinnerId) return dinner; const removedPairingIds = new Set(dinner.pairings.filter((pairing) => pairing.courseId === courseId).map((pairing) => pairing.id)); return { ...dinner, courses: dinner.courses.filter((course) => course.id !== courseId), pairings: dinner.pairings.filter((pairing) => pairing.courseId !== courseId), ratings: dinner.ratings.filter((rating) => !(rating.targetType === "course" && rating.targetId === courseId) && !(rating.targetType === "pairing" && removedPairingIds.has(rating.targetId))), photos: dinner.photos?.map((photo) => photo.courseId === courseId ? { ...photo, courseId: undefined } : photo), voiceNotes: dinner.voiceNotes?.map((note) => note.courseId === courseId ? { ...note, courseId: undefined } : note) }; }) }));
+  }, [live, state.space.id]);
 
   const addWine = useCallback(async (draft: WineDraft) => {
     let wineId = uid(); let imageUrl: string | undefined;
@@ -169,7 +177,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const inviteMember = useCallback(async (email: string) => { let token = uid().replaceAll("-", ""); if (live) { const { data, error } = await createClient().rpc("create_space_invitation", { target_space_id: state.space.id, invite_email: email }); if (error) throw error; token = data as string; } setState((current) => ({ ...current, space: { ...current.space, members: [...current.space.members, { id: uid(), name: email.split("@")[0], email, role: "pending" }] } })); return `${window.location.origin}/invite/${token}`; }, [live, state.space.id]);
   const createShareLink = useCallback(async (dinnerId: string) => { let token = uid().replaceAll("-", ""); if (live) { const { data, error } = await createClient().rpc("create_dinner_share_link", { target_dinner_id: dinnerId }); if (error) throw error; token = data as string; } const link = { token, dinnerId, createdAt: new Date().toISOString() }; setState((current) => ({ ...current, shareLinks: [...current.shareLinks, link] })); if (!live) { const stored = JSON.parse(window.localStorage.getItem(SHARE_KEY) ?? "{}") as Record<string, Dinner>; const dinner = state.dinners.find((item) => item.id === dinnerId); if (dinner) { stored[token] = dinner; window.localStorage.setItem(SHARE_KEY, JSON.stringify(stored)); } } return `${window.location.origin}/share/${token}`; }, [live, state.dinners]);
 
-  const value = useMemo<AppData>(() => ({ ...state, ready, mode: live ? "live" : "demo", viewer, createDinner, updateDinner, addCourse, updateCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, createEditorialCover, addVoiceNote, updateSpace, inviteMember, createShareLink }), [state, ready, live, viewer, createDinner, updateDinner, addCourse, updateCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, createEditorialCover, addVoiceNote, updateSpace, inviteMember, createShareLink]);
+  const value = useMemo<AppData>(() => ({ ...state, ready, mode: live ? "live" : "demo", viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, createEditorialCover, addVoiceNote, updateSpace, inviteMember, createShareLink }), [state, ready, live, viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, createEditorialCover, addVoiceNote, updateSpace, inviteMember, createShareLink]);
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
 

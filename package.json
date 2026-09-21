@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:mobile": "TZ=America/Los_Angeles node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/check-mobile-parity.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

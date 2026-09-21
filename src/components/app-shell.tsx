@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-w-0 pb-24 lg:col-start-2 lg:pb-0">{children}</main>
+      <main className="min-w-0 pb-24 lg:col-start-2 lg:pb-0"><div className="flex items-center justify-between border-b hairline px-4 py-3 lg:hidden"><Link href="/" className="font-editorial text-xl text-[var(--wine)]">At Our Table</Link><Link href="/settings" aria-label="Space settings" className={clsx("focus-ring inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold", active("/settings") ? "bg-[var(--wine)] text-white" : "bg-white/60 text-[var(--muted)]")}><span className="grid size-6 place-items-center rounded-full bg-[var(--tomato)] text-[.68rem] text-white">{viewer.name[0]?.toUpperCase()}</span><Settings size={16} /> Settings</Link></div>{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t hairline bg-[#f8f1e7]/95 px-2 pb-[max(.55rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden" aria-label="Mobile navigation">
         {nav.slice(0, 2).map((item) => <MobileNavItem key={item.href} item={item} selected={active(item.href)} />)}
