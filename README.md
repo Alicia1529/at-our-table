@@ -43,6 +43,7 @@ The database bootstrap automatically creates a private space for each new accoun
 - Scan one or two bottle photos to prefill producer, cuvée, vintage, origin, grapes, color, introduction, and provisional tasting notes; every result remains editable before saving.
 - Pair a dish to a wine explicitly, then save a member-specific 1–5 rating and notes.
 - Capture many private photos, browser-recorded voice notes, and quick written memories.
+- Turn a selected dinner photo into a vertical journal cover using the pinned, full [Photo Abstract Editorial](https://github.com/ZzzLc0405/photo-abstract-editorial) skill prompt by @AM. (personal/non-commercial use).
 - Search and filter the dinner journal and wine history; derive the shared taste view from saved data.
 - See every dinner's bottles in a dedicated wine-list tab, with its date, time, serving note, and course pairings.
 - Manage space identity and members, accept private invitation links, and create read-only dinner share links.

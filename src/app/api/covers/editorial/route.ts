@@ -6,17 +6,18 @@ const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxPhotoBytes = 20 * 1024 * 1024;
 export const maxDuration = 300;
 
-// Adapted for a landscape journal card from Photo Abstract Editorial by @AM.
+// Use the author's full, pinned skill prompt at runtime instead of redistributing
+// or loosely paraphrasing it in this public repository.
 // Personal/non-commercial license: https://github.com/ZzzLc0405/photo-abstract-editorial
-const editorialPrompt = `Edit the uploaded dinner photograph into one finished landscape editorial cover. The uploaded photograph is the only content source.
+const editorialSkillPromptUrl = "https://raw.githubusercontent.com/ZzzLc0405/photo-abstract-editorial/49e55073d6d0330274d31f75d27f5dd6eb35fd6d/references/photo-abstract-editorial-prompt.en.md";
 
-Keep the original photograph faithful in the left or principal 58-68% of the canvas. Permit only proportional scaling and a slight crop. Do not redraw, extend, retouch, filter, replace, or otherwise alter the food, table, people, light, or setting in the photograph.
-
-On the remaining right side, create a flat, continuous neutral ivory panel with no texture, gradient, paper grain, shadow, frame, collage, tape, glow, or mockup effect. Internally observe three to six spatial, tonal, and color relationships from the photograph, then reconstruct only those relationships as a sparse abstract motif. Every mark and every muted color must be traceable to a visible fact in the photo. Prefer relationships, rhythm, overlap, scale, negative space, and color roles over recognizable silhouettes. Use one primary mark family and at most two supporting mark families, with generous whitespace.
-
-Create one original poetic English title of two to five words grounded in visible facts from this dinner photograph. Render it once on the ivory panel in a restrained editorial serif face. Do not add dates, locations, labels, logos, watermarks, captions, or any other text.
-
-Return only the clean completed landscape composition.`;
+async function loadEditorialSkillPrompt() {
+  const response = await fetch(editorialSkillPromptUrl, { cache: "force-cache", headers: { Accept: "text/plain" } });
+  if (!response.ok) throw new Error(`Photo Abstract Editorial prompt returned ${response.status}.`);
+  const prompt = await response.text();
+  if (prompt.length < 5000 || !prompt.includes("DECONSTRUCT") || !prompt.includes("CLEAN mode")) throw new Error("Photo Abstract Editorial prompt did not pass validation.");
+  return prompt;
+}
 
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -54,13 +55,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This photo could not be decoded. Try exporting it as a standard JPEG or PNG." }, { status: 400 });
   }
 
+  let editorialPrompt: string;
+  try { editorialPrompt = await loadEditorialSkillPrompt(); }
+  catch { return NextResponse.json({ error: "The Photo Abstract Editorial style instructions are temporarily unavailable. Try again in a moment." }, { status: 503 }); }
+
   const form = new FormData();
   form.append("model", process.env.OPENAI_IMAGE_MODEL || "gpt-image-2.5-sunburst");
   const normalizedBytes = Uint8Array.from(normalizedSource);
   form.append("image[]", new Blob([normalizedBytes], { type: "image/png" }), "dinner-photo.png");
   form.append("prompt", editorialPrompt);
-  form.append("size", "1536x1024");
-  form.append("quality", "medium");
+  form.append("size", "1024x1536");
+  form.append("quality", "high");
   form.append("output_format", "webp");
 
   let imageResponse: Response;
