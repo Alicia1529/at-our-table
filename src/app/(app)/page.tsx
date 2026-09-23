@@ -8,20 +8,23 @@ import { useAppData } from "@/components/app-data-provider";
 import { formatDinnerDateTime, formatDinnerDay } from "@/lib/date-format";
 
 export default function HomePage() {
-  const { dinners, wines, ready, mode } = useAppData();
-  const featured = dinners.find((dinner) => dinner.status !== "remembered") ?? dinners[0];
+  const { dinners, wines, ready, mode, viewer } = useAppData();
+  const featured = dinners.find((dinner) => dinner.coverImage !== "/table-hero.jpg")
+    ?? dinners.find((dinner) => dinner.status !== "remembered")
+    ?? dinners[0];
+  const featuredImage = featured?.coverImage ?? "/table-hero.jpg";
   if (!ready) return <div className="grid min-h-screen place-items-center text-sm text-[var(--muted)]">Opening the journal…</div>;
   return <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-7 sm:py-8 xl:px-10">
     <header className="mb-6 flex items-center justify-between lg:mb-8">
-      <div><p className="text-sm text-[var(--muted)]">{formatDinnerDay(new Date().toISOString())} · {mode === "live" ? "Live space" : "Demo space"}</p><h1 className="font-editorial mt-1 text-3xl sm:text-4xl">Good evening, Alicia.</h1></div>
+      <div><p className="text-sm text-[var(--muted)]">{formatDinnerDay(new Date().toISOString())} · {mode === "live" ? "Live space" : "Demo space"}</p><h1 className="font-editorial mt-1 text-3xl sm:text-4xl">Good evening, {viewer.name}.</h1></div>
       <Link href="/dinners/new" className="focus-ring hidden rounded-full bg-[var(--wine)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--wine-deep)] sm:inline-flex">Plan a dinner</Link>
     </header>
 
     <section className="relative min-h-[470px] overflow-hidden rounded-[1.5rem] bg-[var(--wine-deep)] text-white sm:min-h-[520px]">
-      <Image src="/table-hero.jpg" alt="A candlelit dinner table with shared plates and wine" fill priority className="object-cover" sizes="(min-width: 1024px) 80vw, 100vw" />
+      <Image src={featuredImage} alt={featured ? `${featured.title} cover` : "A candlelit dinner table with shared plates and wine"} fill priority unoptimized className="object-cover" sizes="(min-width: 1024px) 80vw, 100vw" />
       <div className="absolute inset-0 bg-gradient-to-r from-[#1d0b0a]/95 via-[#301412]/60 to-transparent" />
       <div className="relative flex min-h-[470px] max-w-2xl flex-col justify-between p-6 sm:min-h-[520px] sm:p-10 lg:p-12">
-        <div className="flex items-center justify-between"><Pill tone="wine">Next at our table</Pill></div>
+        <div className="flex items-center justify-between"><Pill tone="wine">{featured?.status === "remembered" ? "From the journal" : "Next at our table"}</Pill></div>
         <div>
           {featured && <p className="mb-4 text-sm font-semibold text-[#f2b49f]">{formatDinnerDateTime(featured.date, "long")}</p>}
           <h2 className="font-editorial max-w-xl text-5xl leading-[.95] sm:text-6xl">{featured?.title ?? "Plan the next dinner"}</h2>
@@ -33,10 +36,16 @@ export default function HomePage() {
 
     <div className="mt-8 grid gap-8 xl:grid-cols-[1.35fr_.65fr]">
       <section><div className="mb-4 flex items-end justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--tomato)]">From the journal</p><h2 className="font-editorial mt-1 text-3xl">Recent dinners</h2></div><Link href="/journal" className="text-sm font-semibold text-[var(--wine)] hover:underline">See all</Link></div>
-        <div className="grid gap-4 md:grid-cols-2">{dinners.map((item) => <Link key={item.id} href={`/dinners/${item.id}`} className="lift focus-ring group rounded-2xl border hairline bg-white/60 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2"><Pill>{item.locationType === "home" ? "At home" : "Restaurant"}</Pill><time dateTime={item.date} className="text-xs font-medium text-[var(--muted)]">{formatDinnerDateTime(item.date)}</time></div>
-          <h3 className="font-editorial mt-5 text-2xl leading-tight group-hover:text-[var(--wine)]">{item.title}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted)]">{item.summary}</p>
-          <div className="mt-5 flex items-center justify-between"><AvatarStack names={item.guests} limit={3} /><span className="text-xs font-medium text-[var(--muted)]">{item.courses.length} courses · {item.wineExperienceIds.length} wines · {item.photoCount} photos</span></div>
+        <div className="grid gap-4 md:grid-cols-2">{dinners.map((item) => <Link key={item.id} href={`/dinners/${item.id}`} className="lift focus-ring group overflow-hidden rounded-2xl border hairline bg-white/60">
+          <div className="relative aspect-[2/1] overflow-hidden bg-[#e8e1d7]">
+            <Image src={item.coverImage} alt={`${item.title} thumbnail`} fill unoptimized className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" sizes="(min-width: 768px) 36vw, 100vw" />
+            <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm"><Camera size={13} /> {item.photoCount}</span>
+          </div>
+          <div className="p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2"><Pill>{item.locationType === "home" ? "At home" : "Restaurant"}</Pill><time dateTime={item.date} className="text-xs font-medium text-[var(--muted)]">{formatDinnerDateTime(item.date)}</time></div>
+            <h3 className="font-editorial mt-5 text-2xl leading-tight group-hover:text-[var(--wine)]">{item.title}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted)]">{item.summary}</p>
+            <div className="mt-5 flex items-center justify-between"><AvatarStack names={item.guests} limit={3} /><span className="text-xs font-medium text-[var(--muted)]">{item.courses.length} courses · {item.wineExperienceIds.length} wines · {item.photoCount} photos</span></div>
+          </div>
         </Link>)}</div>
       </section>
 
