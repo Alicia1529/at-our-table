@@ -23,7 +23,7 @@ type AppData = AppState & {
   addNote: (dinnerId: string, body: string) => Promise<void>;
   addPhotos: (dinnerId: string, files: File[]) => Promise<void>;
   deletePhoto: (dinnerId: string, photoId: string) => Promise<void>;
-  createEditorialCover: (dinnerId: string, photoId: string) => Promise<void>;
+  setDinnerCover: (dinnerId: string, photoId: string, mode: "editorial" | "original") => Promise<void>;
   addVoiceNote: (dinnerId: string, blob: Blob, durationSeconds: number) => Promise<void>;
   updateSpace: (name: string, tagline: string) => Promise<void>;
   inviteMember: (email: string) => Promise<string>;
@@ -160,11 +160,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     setState((current) => ({ ...current, dinners: current.dinners.map((dinner) => dinner.id === dinnerId ? { ...dinner, photos: (dinner.photos ?? []).filter((item) => item.id !== photoId), photoCount: Math.max(0, dinner.photoCount - 1) } : dinner) }));
   }, [live, state.dinners, state.space.id]);
 
-  const createEditorialCover = useCallback(async (dinnerId: string, photoId: string) => {
+  const setDinnerCover = useCallback(async (dinnerId: string, photoId: string, mode: "editorial" | "original") => {
     const photo = state.dinners.find((dinner) => dinner.id === dinnerId)?.photos?.find((item) => item.id === photoId); if (!photo) throw new Error("Choose a photo from this dinner.");
     if (!live) { setState((current) => ({ ...current, dinners: current.dinners.map((dinner) => dinner.id === dinnerId ? { ...dinner, coverImage: photo.url } : dinner) })); return; }
-    const response = await fetch("/api/covers/editorial", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dinnerId, photoId }) });
-    const result = await response.json() as { coverImage?: string; error?: string }; if (!response.ok || !result.coverImage) throw new Error(result.error || "Could not create the editorial cover.");
+    const response = await fetch("/api/covers/editorial", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dinnerId, photoId, mode }) });
+    const result = await response.json() as { coverImage?: string; error?: string }; if (!response.ok || !result.coverImage) throw new Error(result.error || "Could not set the dinner cover.");
     setState((current) => ({ ...current, dinners: current.dinners.map((dinner) => dinner.id === dinnerId ? { ...dinner, coverImage: result.coverImage! } : dinner) }));
   }, [live, state.dinners]);
 
@@ -177,7 +177,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const inviteMember = useCallback(async (email: string) => { let token = uid().replaceAll("-", ""); if (live) { const { data, error } = await createClient().rpc("create_space_invitation", { target_space_id: state.space.id, invite_email: email }); if (error) throw error; token = data as string; } setState((current) => ({ ...current, space: { ...current.space, members: [...current.space.members, { id: uid(), name: email.split("@")[0], email, role: "pending" }] } })); return `${window.location.origin}/invite/${token}`; }, [live, state.space.id]);
   const createShareLink = useCallback(async (dinnerId: string) => { let token = uid().replaceAll("-", ""); if (live) { const { data, error } = await createClient().rpc("create_dinner_share_link", { target_dinner_id: dinnerId }); if (error) throw error; token = data as string; } const link = { token, dinnerId, createdAt: new Date().toISOString() }; setState((current) => ({ ...current, shareLinks: [...current.shareLinks, link] })); if (!live) { const stored = JSON.parse(window.localStorage.getItem(SHARE_KEY) ?? "{}") as Record<string, Dinner>; const dinner = state.dinners.find((item) => item.id === dinnerId); if (dinner) { stored[token] = dinner; window.localStorage.setItem(SHARE_KEY, JSON.stringify(stored)); } } return `${window.location.origin}/share/${token}`; }, [live, state.dinners]);
 
-  const value = useMemo<AppData>(() => ({ ...state, ready, mode: live ? "live" : "demo", viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, createEditorialCover, addVoiceNote, updateSpace, inviteMember, createShareLink }), [state, ready, live, viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, createEditorialCover, addVoiceNote, updateSpace, inviteMember, createShareLink]);
+  const value = useMemo<AppData>(() => ({ ...state, ready, mode: live ? "live" : "demo", viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, setDinnerCover, addVoiceNote, updateSpace, inviteMember, createShareLink }), [state, ready, live, viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, setDinnerCover, addVoiceNote, updateSpace, inviteMember, createShareLink]);
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
 
