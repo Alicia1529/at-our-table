@@ -1,8 +1,67 @@
 # At Our Table
 
-Plan dinner, pair the wine, and remember what you loved.
+**Plan dinner, pair the wine, and remember what you loved.**
 
-A mobile-first private dinner journal built with Next.js, TypeScript, Tailwind CSS, and Supabase. V1 centers the dinner memory: menus, explicit dish-to-wine pairings, photos, voice-note-ready capture, and person-specific ratings. Wine records are intentionally separate from the experience of opening a bottle at a particular dinner.
+A warm, private dinner and wine journal for the people you share a table with. Plan a menu, record every bottle, add notes and photos while the evening is happening, then return to the memory later.
+
+[Open the live app](https://at-our-table-plum.vercel.app) · [Read the build spec](docs/BUILD_SPEC.md)
+
+![At Our Table home screen](docs/images/home.png)
+
+## One dinner, from plan to memory
+
+A dinner is a mutable record rather than a one-time form. It can begin as a plan, change at the table, and become a journal entry afterward.
+
+- Create home or restaurant dinners with any number of courses and guests.
+- Add multiple wines to one dish—or keep a bottle unpaired.
+- Save photos, written notes, browser-recorded voice notes, and a journal cover.
+- Keep dates and times visible throughout the home, journal, dinner, and wine-history views.
+- Invite another Google account into the same private space or create a read-only share link for one dinner.
+
+![Dinner courses, pairings, and quick capture](docs/images/dinner.png)
+
+## Wine is history, not just inventory
+
+`Wine` describes the bottle itself. `Wine Experience` describes opening that bottle at a particular dinner. Explicit dish-to-wine pairings connect the two without forcing every bottle to belong to a course.
+
+Each person can append a new 1–5 score and tasting note whenever they try the wine. The displayed score is the average of those individual tasting entries, preserving the full history rather than overwriting the last opinion.
+
+![Dinner wine list and append-only tasting log](docs/images/wine-log.png)
+
+## Highlights
+
+- **Menu and pairing ideas** — draft a menu and generate an explainable wine recommendation for every named course.
+- **Flexible wine list** — open several bottles, pair one bottle with several dishes, or enjoy it on its own.
+- **Wine-label scan** — select up to two front/back bottle photos and prefill editable producer, cuvée, vintage, origin, grapes, color, introduction, and provisional tasting notes.
+- **Memory capture** — upload many private photos, write notes, and record voice notes from desktop or mobile.
+- **Editorial thumbnails** — use the original dinner photo or generate a clean abstract memory panel with the pinned [Photo Abstract Editorial](https://github.com/ZzzLc0405/photo-abstract-editorial) skill prompt by @AM (personal/non-commercial use).
+- **Shared taste** — derive the space's preferences from actual tasting logs and dinner history.
+- **Private by default** — Google authentication, private Storage, hashed share tokens, and Postgres row-level security restrict data to space members.
+
+## Domain model
+
+```text
+Space
+├── Members
+├── Dinners
+│   ├── Courses
+│   ├── Wine Experiences ── Wine
+│   ├── Dish ↔ Wine Pairings
+│   ├── Tasting Logs
+│   ├── Photos / Voice Notes / Notes
+│   └── Read-only Share Links
+└── Wine Journal
+```
+
+The separation between a canonical wine and each time it is opened prevents dinner-specific serving notes, ratings, and pairings from polluting the bottle's identity.
+
+## Stack
+
+- Next.js 16 App Router, React 19, and TypeScript
+- Tailwind CSS
+- Supabase Auth, Postgres, private Storage, RPCs, and RLS
+- OpenAI image understanding for label scans and editorial cover generation
+- Vercel hosting with GitHub-connected deployments
 
 ## Run locally
 
@@ -12,41 +71,44 @@ cp .env.example .env.local
 npm run dev
 ```
 
-With no environment variables, the app runs as a fully interactive demo and persists dinners, wines, ratings, notes, photos, invitations, shares, and preferences in the browser. Add a Supabase project URL and publishable key to switch to Google sign-in, Postgres, private Storage, and row-level security.
+Open [http://localhost:3000](http://localhost:3000).
 
-Add the server-only `OPENAI_API_KEY` value to enable **Scan wine label**. The browser sends up to two user-selected front/back photos to the app's authenticated API route; the route extracts editable wine fields with image input and structured output. The key is never sent to the browser. `OPENAI_WINE_MODEL` can optionally override the default `gpt-5-mini` model.
+With no environment variables, the app runs as a fully interactive demo and keeps dinners, wines, ratings, notes, photos, invitations, shares, and preferences in browser storage. Add Supabase variables to use Google sign-in, Postgres, private Storage, and multi-member spaces.
 
 ```bash
-npm run typecheck
-npm run lint
-npm run build
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+OPENAI_API_KEY=your-server-only-key
 ```
+
+`OPENAI_API_KEY` is server-only. It enables wine-label recognition and editorial cover generation and is never sent to the browser. `OPENAI_WINE_MODEL` and `OPENAI_IMAGE_MODEL` can optionally override their defaults.
 
 ## Supabase setup
 
 1. Create a Supabase project and enable the Google provider.
-2. Add `http://localhost:3000/auth/callback` and the production callback URL to the redirect allow list.
-3. Link and publish the migrations with `npx supabase link --project-ref <project-ref>`, then `npx supabase db push --dry-run` and `npx supabase db push`.
-4. Create `.env.local` from `.env.example`.
+2. Add `http://localhost:3000/auth/callback` and the production callback URL to the Auth redirect allow list.
+3. Link and publish the migrations:
 
-The migration creates a private `dinner-media` bucket. Object paths must start with the space UUID, for example `<space-id>/<dinner-id>/<file>` for dinner media or `<space-id>/wine-labels/<file>` for bottle labels.
+   ```bash
+   npx supabase link --project-ref <project-ref>
+   npx supabase db push --dry-run
+   npx supabase db push
+   ```
 
-The database bootstrap automatically creates a private space for each new account. Invitations are email-bound, share tokens are stored as hashes, and anonymous share pages receive only a curated read-only payload—never direct table or Storage access.
+4. Copy `.env.example` to `.env.local` and add the project URL and publishable key.
 
-## Functional V1
+The migrations create a private `dinner-media` bucket. Object paths begin with the space UUID—for example, `<space-id>/<dinner-id>/<file>` for dinner media and `<space-id>/wine-labels/<file>` for bottle labels.
 
-- Create home or restaurant dinners with any number of courses, guests, and starting wines.
-- Edit the same dinner before, during, and after the meal, including its courses and remembered status.
-- Keep canonical wine records separate from dinner-specific wine experiences.
-- Generate an explainable wine recommendation for each named course, then add the suggested bottle to the dinner.
-- Add personal bottles with a private label photo, editorial introduction, and reusable tasting notes.
-- Scan one or two bottle photos to prefill producer, cuvée, vintage, origin, grapes, color, introduction, and provisional tasting notes; every result remains editable before saving.
-- Pair a dish to a wine explicitly, then save a member-specific 1–5 rating and notes.
-- Capture many private photos, browser-recorded voice notes, and quick written memories.
-- Turn a selected dinner photo into a vertical journal cover using the pinned, full [Photo Abstract Editorial](https://github.com/ZzzLc0405/photo-abstract-editorial) skill prompt by @AM. (personal/non-commercial use).
-- Search and filter the dinner journal and wine history; derive the shared taste view from saved data.
-- See every dinner's bottles in a dedicated wine-list tab, with its date, time, serving note, and course pairings.
-- Manage space identity and members, accept private invitation links, and create read-only dinner share links.
-- Start a menu with a simple built-in suggestion; wine pairing uses transparent local rules so it works without an AI key. Remote wine-catalog enrichment remains a later integration.
+New accounts receive a private space automatically. Invitations are bound to the intended email address, share tokens are stored as hashes, and anonymous share pages receive only a curated read-only payload—never direct table or Storage access.
 
-See [docs/BUILD_SPEC.md](docs/BUILD_SPEC.md) for scope and architectural decisions.
+## Quality checks
+
+```bash
+npm run lint
+npm run typecheck
+npm run check:mobile
+npm run check:covers
+npm run build
+```
+
+The regression checks cover mobile feature parity, local date/time round-tripping, and clean abstract-panel thumbnail extraction.
