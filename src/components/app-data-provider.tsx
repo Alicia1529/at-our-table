@@ -15,6 +15,7 @@ type AppData = AppState & {
   addCourse: (dinnerId: string, title: string, description?: string) => Promise<void>;
   updateCourse: (dinnerId: string, courseId: string, title: string, description?: string) => Promise<void>;
   deleteCourse: (dinnerId: string, courseId: string) => Promise<void>;
+  reorderCourses: (dinnerId: string, orderedCourseIds: string[]) => Promise<void>;
   addWine: (draft: WineDraft) => Promise<string>;
   updateWine: (id: string, draft: WineDraft) => Promise<void>;
   openWine: (dinnerId: string, wineId: string, servingNote?: string) => Promise<string>;
@@ -94,6 +95,14 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (live) { const { error } = await createClient().from("courses").delete().eq("id", courseId).eq("dinner_id", dinnerId).eq("space_id", state.space.id); if (error) throw error; }
     setState((current) => ({ ...current, dinners: current.dinners.map((dinner) => { if (dinner.id !== dinnerId) return dinner; const removedPairingIds = new Set(dinner.pairings.filter((pairing) => pairing.courseId === courseId).map((pairing) => pairing.id)); return { ...dinner, courses: dinner.courses.filter((course) => course.id !== courseId), pairings: dinner.pairings.filter((pairing) => pairing.courseId !== courseId), ratings: dinner.ratings.filter((rating) => !(rating.targetType === "course" && rating.targetId === courseId) && !(rating.targetType === "pairing" && removedPairingIds.has(rating.targetId))), photos: dinner.photos?.map((photo) => photo.courseId === courseId ? { ...photo, courseId: undefined } : photo), voiceNotes: dinner.voiceNotes?.map((note) => note.courseId === courseId ? { ...note, courseId: undefined } : note) }; }) }));
   }, [live, state.space.id]);
+
+  const reorderCourses = useCallback(async (dinnerId: string, orderedCourseIds: string[]) => {
+    const dinner = state.dinners.find((item) => item.id === dinnerId); if (!dinner) return;
+    if (orderedCourseIds.length !== dinner.courses.length || new Set(orderedCourseIds).size !== dinner.courses.length) throw new Error("The complete course order is required.");
+    if (live) { const { error } = await createClient().rpc("reorder_dinner_courses", { target_dinner_id: dinnerId, ordered_course_ids: orderedCourseIds }); if (error) throw error; }
+    const positions = new Map(orderedCourseIds.map((id, index) => [id, index + 1]));
+    setState((current) => ({ ...current, dinners: current.dinners.map((item) => item.id === dinnerId ? { ...item, courses: [...item.courses].sort((a, b) => (positions.get(a.id) ?? 0) - (positions.get(b.id) ?? 0)).map((course, index) => ({ ...course, position: index + 1 })) } : item) }));
+  }, [live, state.dinners]);
 
   const addWine = useCallback(async (draft: WineDraft) => {
     let wineId = uid(); let imageUrl: string | undefined;
@@ -177,7 +186,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const inviteMember = useCallback(async (email: string) => { let token = uid().replaceAll("-", ""); if (live) { const { data, error } = await createClient().rpc("create_space_invitation", { target_space_id: state.space.id, invite_email: email }); if (error) throw error; token = data as string; } setState((current) => ({ ...current, space: { ...current.space, members: [...current.space.members, { id: uid(), name: email.split("@")[0], email, role: "pending" }] } })); return `${window.location.origin}/invite/${token}`; }, [live, state.space.id]);
   const createShareLink = useCallback(async (dinnerId: string) => { let token = uid().replaceAll("-", ""); if (live) { const { data, error } = await createClient().rpc("create_dinner_share_link", { target_dinner_id: dinnerId }); if (error) throw error; token = data as string; } const link = { token, dinnerId, createdAt: new Date().toISOString() }; setState((current) => ({ ...current, shareLinks: [...current.shareLinks, link] })); if (!live) { const stored = JSON.parse(window.localStorage.getItem(SHARE_KEY) ?? "{}") as Record<string, Dinner>; const dinner = state.dinners.find((item) => item.id === dinnerId); if (dinner) { stored[token] = dinner; window.localStorage.setItem(SHARE_KEY, JSON.stringify(stored)); } } return `${window.location.origin}/share/${token}`; }, [live, state.dinners]);
 
-  const value = useMemo<AppData>(() => ({ ...state, ready, mode: live ? "live" : "demo", viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, setDinnerCover, addVoiceNote, updateSpace, inviteMember, createShareLink }), [state, ready, live, viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, setDinnerCover, addVoiceNote, updateSpace, inviteMember, createShareLink]);
+  const value = useMemo<AppData>(() => ({ ...state, ready, mode: live ? "live" : "demo", viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, reorderCourses, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, setDinnerCover, addVoiceNote, updateSpace, inviteMember, createShareLink }), [state, ready, live, viewer, createDinner, updateDinner, addCourse, updateCourse, deleteCourse, reorderCourses, addWine, updateWine, openWine, pairWine, addWineTasting, addNote, addPhotos, deletePhoto, setDinnerCover, addVoiceNote, updateSpace, inviteMember, createShareLink]);
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
 
