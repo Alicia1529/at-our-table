@@ -25,6 +25,7 @@ assert.equal(
 assert.match(provider, /deleteCourse/, "the data layer must expose course deletion");
 assert.match(source, /Delete course/, "the dinner UI must expose course deletion");
 assert.match(source, /data-mobile-quick-capture/, "photo and note capture must be discoverable on mobile");
+assert.match(source, /reordering/, "course ordering controls must be hidden until reorder mode is active");
 assert.match(appShell, /aria-label="Space settings"/, "space settings must have a mobile entry point");
 assert.doesNotMatch(wineJournal, /aria-label="Filter by wine color" className="[^"]*hidden/, "wine color filtering must not be hidden on mobile");
 

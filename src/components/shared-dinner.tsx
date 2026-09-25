@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Camera, Check, Edit3, LockKeyhole, MapPin, Plus, Save, Wine, X } from "lucide-react";
+import { Camera, Check, Edit3, LoaderCircle, LockKeyhole, MapPin, Plus, Save, Wine, X } from "lucide-react";
 import { CourseOrderControls, SortableCourseList } from "@/components/sortable-course-list";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { formatDinnerDateTime } from "@/lib/date-format";
 import type { Dinner } from "@/lib/types";
+import { identifyWinePhotos, type WinePhotoIdentification } from "@/lib/wine-photo-identification";
 
 type SharedWine = {
   id: string; producer: string; cuvee: string; vintage: number | null; region: string; country: string;
@@ -30,6 +31,9 @@ export function SharedDinner({ token }: { token: string }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [wineMessage, setWineMessage] = useState("");
+  const [scanPending, setScanPending] = useState(false);
+  const [recognition, setRecognition] = useState<WinePhotoIdentification | null>(null);
+  const [scannedLabel, setScannedLabel] = useState<File>();
 
   useEffect(() => {
     const load = async () => {
@@ -87,6 +91,38 @@ export function SharedDinner({ token }: { token: string }) {
     setPairingCourseId(courseId);
     setPairMode(dinner?.available_wines.length ? "saved" : "manual");
     setWineMessage("");
+    setRecognition(null);
+    setScannedLabel(undefined);
+  };
+
+  const closePairing = () => {
+    setPairingCourseId(null);
+    setRecognition(null);
+    setScannedLabel(undefined);
+    setWineMessage("");
+  };
+
+  const scanWine = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length) return;
+    if (files.length > 2) {
+      setWineMessage("Choose up to two photos: the front label, or the front and back labels.");
+      event.target.value = "";
+      return;
+    }
+    setScanPending(true);
+    setWineMessage("");
+    try {
+      const result = await identifyWinePhotos(files);
+      setRecognition(result);
+      setScannedLabel(files[0]);
+      setPairMode("manual");
+    } catch (cause) {
+      setWineMessage(errorText(cause, "Could not read this wine label."));
+    } finally {
+      setScanPending(false);
+      event.target.value = "";
+    }
   };
 
   const addWine = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -103,15 +139,27 @@ export function SharedDinner({ token }: { token: string }) {
     } : null;
     try {
       if (!isSupabaseConfigured()) throw new Error("Wine collaboration is available when the app is connected to Supabase.");
-      const { data, error } = await createClient().rpc("add_shared_dinner_wine", {
+      const supabase = createClient();
+      let labelPhotoPath: string | undefined;
+      if (pairMode === "manual" && scannedLabel) {
+        const { data: prefix, error: prefixError } = await supabase.rpc("get_shared_wine_label_upload_prefix", { raw_token: token });
+        if (prefixError || !prefix) throw prefixError ?? new Error("This shared link can no longer upload wine labels.");
+        labelPhotoPath = `${prefix}/${crypto.randomUUID()}-${safeFileName(scannedLabel.name)}`;
+        const { error: uploadError } = await supabase.storage.from("dinner-media").upload(labelPhotoPath, scannedLabel, {
+          contentType: scannedLabel.type,
+          upsert: false,
+        });
+        if (uploadError) throw uploadError;
+      }
+      const { data, error } = await supabase.rpc("add_shared_dinner_wine", {
         raw_token: token, target_course_id: String(form.get("courseId") ?? "") || null,
         existing_wine_id: pairMode === "saved" ? String(form.get("wineId")) : null,
-        wine_profile: wineProfile, serving_note: String(form.get("servingNote") ?? ""),
+        wine_profile: wineProfile ? { ...wineProfile, label_photo_path: labelPhotoPath } : null, serving_note: String(form.get("servingNote") ?? ""),
         pairing_note: String(form.get("pairingNote") ?? ""),
       });
       if (error) throw error;
       const payload = normalizePayload(data as SharedPayload);
-      setDinner(payload); setDraft(payload.courses); setPairingCourseId(null);
+      setDinner(payload); setDraft(payload.courses); closePairing();
       setMessage("Wine added to this dinner.");
     } catch (cause) { setWineMessage(errorText(cause, "Could not add this wine.")); }
     finally { setSaving(false); }
@@ -139,20 +187,22 @@ export function SharedDinner({ token }: { token: string }) {
       <p className="mt-12 text-center text-xs leading-5 text-[var(--muted)]">Anyone with this private link can edit the menu, add wines, and view public wine profiles. Photos, notes, ratings, guests, and wine event history stay private. The owner can revoke the link at any time.</p>
     </article>
 
-    {pairingCourseId !== null && <PairWineDialog courses={dinner.courses} availableWines={dinner.available_wines} selectedCourseId={pairingCourseId} pairMode={pairMode} onPairMode={setPairMode} onClose={() => setPairingCourseId(null)} onSubmit={addWine} saving={saving} message={wineMessage} />}
+    {pairingCourseId !== null && <PairWineDialog courses={dinner.courses} availableWines={dinner.available_wines} selectedCourseId={pairingCourseId} pairMode={pairMode} onPairMode={setPairMode} onClose={closePairing} onSubmit={addWine} onScan={scanWine} scanPending={scanPending} recognition={recognition} scannedLabel={scannedLabel} saving={saving} message={wineMessage} />}
     {selectedWine && <WineProfileDialog wine={selectedWine} onClose={() => setSelectedWine(null)} />}
   </main>;
 }
 
-function PairWineDialog({ courses, availableWines, selectedCourseId, pairMode, onPairMode, onClose, onSubmit, saving, message }: {
+function PairWineDialog({ courses, availableWines, selectedCourseId, pairMode, onPairMode, onClose, onSubmit, onScan, scanPending, recognition, scannedLabel, saving, message }: {
   courses: SharedCourse[]; availableWines: SharedWine[]; selectedCourseId: string; pairMode: PairMode;
   onPairMode: (mode: PairMode) => void; onClose: () => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>; saving: boolean; message: string;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+  onScan: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  scanPending: boolean; recognition: WinePhotoIdentification | null; scannedLabel?: File; saving: boolean; message: string;
 }) {
   return <div className="fixed inset-0 z-50 grid place-items-end bg-black/45 sm:place-items-center sm:p-5"><form onSubmit={(event) => void onSubmit(event)} role="dialog" aria-modal="true" aria-labelledby="pair-wine-title" className="max-h-[92vh] w-full max-w-lg overflow-auto rounded-t-3xl bg-[var(--paper)] p-6 shadow-2xl sm:rounded-3xl"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[var(--tomato)]">Shared dinner</p><h2 id="pair-wine-title" className="font-editorial mt-1 text-3xl">Pair a wine</h2></div><button type="button" onClick={onClose} aria-label="Close" className="focus-ring rounded-full p-2"><X size={19} /></button></div>
     <label className="mt-6 block"><span className="text-sm font-bold">Course pairing</span><select name="courseId" defaultValue={selectedCourseId} className="field-input mt-2"><option value="">Enjoyed on its own</option>{courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}</select></label>
     <div className="mt-5 grid grid-cols-2 rounded-full bg-[#eadfce] p-1"><button type="button" disabled={!availableWines.length} onClick={() => onPairMode("saved")} className={`focus-ring rounded-full px-3 py-2 text-sm font-bold disabled:opacity-45 ${pairMode === "saved" ? "bg-white text-[var(--wine)] shadow-sm" : "text-[var(--muted)]"}`}>Choose saved wine</button><button type="button" onClick={() => onPairMode("manual")} className={`focus-ring rounded-full px-3 py-2 text-sm font-bold ${pairMode === "manual" ? "bg-white text-[var(--wine)] shadow-sm" : "text-[var(--muted)]"}`}>Add new wine</button></div>
-    {pairMode === "saved" ? <label className="mt-5 block"><span className="text-sm font-bold">Wine</span><select name="wineId" required className="field-input mt-2">{availableWines.map((wine) => <option key={wine.id} value={wine.id}>{wine.producer} · {wine.cuvee || "Untitled cuvée"}{wine.vintage ? ` · ${wine.vintage}` : ""}</option>)}</select></label> : <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="sm:col-span-2"><span className="text-sm font-bold">Producer</span><input name="producer" required className="field-input mt-2" placeholder="Domaine Tempier" /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Cuvée</span><input name="cuvee" className="field-input mt-2" placeholder="Bandol Rouge" /></label><label><span className="text-sm font-bold">Vintage</span><input name="vintage" type="number" min="1800" max="2200" className="field-input mt-2" /></label><label><span className="text-sm font-bold">Color</span><select name="color" defaultValue="red" className="field-input mt-2"><option value="red">Red</option><option value="white">White</option><option value="orange">Orange</option><option value="rose">Rosé</option><option value="sparkling">Sparkling</option><option value="fortified">Fortified</option></select></label><label><span className="text-sm font-bold">Region</span><input name="region" className="field-input mt-2" /></label><label><span className="text-sm font-bold">Country</span><input name="country" className="field-input mt-2" /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Grape varieties</span><input name="grapes" className="field-input mt-2" placeholder="Chardonnay, Pinot Noir" /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Introduction</span><textarea name="description" rows={3} className="field-input mt-2 resize-y" placeholder="The story and style of this bottle." /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Tasting notes</span><textarea name="tasting_notes" rows={3} className="field-input mt-2 resize-y" placeholder="Fruit, texture, aromas, finish…" /></label></div>}
+    {pairMode === "saved" ? <label className="mt-5 block"><span className="text-sm font-bold">Wine</span><select name="wineId" required className="field-input mt-2">{availableWines.map((wine) => <option key={wine.id} value={wine.id}>{wine.producer} · {wine.cuvee || "Untitled cuvée"}{wine.vintage ? ` · ${wine.vintage}` : ""}</option>)}</select></label> : <div className="mt-5"><label className="focus-ring flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-[#b89580] bg-[#f1dfbb]/60 px-4 py-4 text-sm font-bold text-[var(--wine)]"><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => void onScan(event)} className="sr-only" />{scanPending ? <LoaderCircle size={18} className="animate-spin" /> : <Camera size={18} />}{scanPending ? "Reading label…" : "Choose 1–2 label photos"}</label><p className="mt-2 text-center text-xs text-[var(--muted)]">Choose photos from your phone; the clearest front label becomes the saved wine image.</p>{recognition && <div className="mt-4 rounded-2xl border border-[#b8c59b] bg-[#edf0df] p-4"><p className="flex items-center gap-2 text-sm font-bold text-[var(--olive)]"><Check size={16} /> Label read with {Math.round(recognition.confidence * 100)}% confidence</p><p className="mt-2 text-xs leading-5 text-[var(--muted)]">Review before saving. Recognized: {recognition.evidence.slice(0, 4).join(" · ") || "label details"}</p>{scannedLabel && <p className="mt-1 text-xs text-[var(--muted)]">{scannedLabel.name} will be saved with this wine.</p>}</div>}<div key={recognition ? `${recognition.producer}-${recognition.vintage}-${recognition.confidence}` : "manual"} className="mt-5 grid gap-4 sm:grid-cols-2"><label className="sm:col-span-2"><span className="text-sm font-bold">Producer</span><input name="producer" required defaultValue={recognition?.producer} className="field-input mt-2" placeholder="Domaine Tempier" /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Cuvée</span><input name="cuvee" defaultValue={recognition?.cuvee} className="field-input mt-2" placeholder="Bandol Rouge" /></label><label><span className="text-sm font-bold">Vintage</span><input name="vintage" type="number" min="1800" max="2200" defaultValue={recognition?.vintage || ""} className="field-input mt-2" /></label><label><span className="text-sm font-bold">Color</span><select name="color" defaultValue={recognition?.color === "unknown" ? "red" : recognition?.color || "red"} className="field-input mt-2"><option value="red">Red</option><option value="white">White</option><option value="orange">Orange</option><option value="rose">Rosé</option><option value="sparkling">Sparkling</option><option value="fortified">Fortified</option></select></label><label><span className="text-sm font-bold">Region</span><input name="region" defaultValue={recognition?.region} className="field-input mt-2" /></label><label><span className="text-sm font-bold">Country</span><input name="country" defaultValue={recognition?.country} className="field-input mt-2" /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Grape varieties</span><input name="grapes" defaultValue={recognition?.grapes.join(", ")} className="field-input mt-2" placeholder="Chardonnay, Pinot Noir" /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Introduction</span><textarea name="description" defaultValue={recognition?.description} rows={3} className="field-input mt-2 resize-y" placeholder="The story and style of this bottle." /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Tasting notes</span><textarea name="tasting_notes" defaultValue={recognition?.tastingNotes} rows={3} className="field-input mt-2 resize-y" placeholder="Fruit, texture, aromas, finish…" /></label></div></div>}
     <div className="mt-5 grid gap-4"><label><span className="text-sm font-bold">Serving note <span className="font-normal text-[var(--muted)]">(private to this dinner)</span></span><input name="servingNote" className="field-input mt-2" placeholder="Decanted 45 minutes" /></label><label><span className="text-sm font-bold">Why it works</span><textarea name="pairingNote" rows={3} className="field-input mt-2 resize-y" placeholder="What makes this pairing sing?" /></label></div>
     {message && <p role="alert" className="mt-4 rounded-xl border border-[#e8b5a8] bg-[#fff0eb] p-3 text-sm font-semibold text-[var(--tomato)]">{message}</p>}
     <button disabled={saving || (pairMode === "saved" && !availableWines.length)} className="focus-ring mt-6 w-full rounded-full bg-[var(--wine)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60">{saving ? "Adding…" : "Add wine to dinner"}</button>
@@ -172,3 +222,7 @@ function normalizePayload(payload: SharedPayload): SharedPayload {
 }
 
 function errorText(cause: unknown, fallback: string) { return cause instanceof Error ? cause.message : fallback; }
+
+function safeFileName(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "wine-label.jpg";
+}

@@ -25,10 +25,15 @@ assert.match(shared, /add_shared_dinner_wine/, "shared collaborators must be abl
 assert.match(shared, /Pair another wine|Pair a wine/, "shared course cards must expose the pairing flow");
 assert.match(shared, /available_wines/, "shared collaborators must be able to choose public saved wines");
 assert.match(shared, /Wine list|Bottles at this dinner/, "shared collaborators must have a dinner wine view");
+assert.match(shared, /identifyWinePhotos/, "shared collaborators must be able to identify wine from label photos");
+assert.match(shared, /multiple/, "shared label recognition must allow up to two selected photos");
+assert.match(shared, /label_photo_path/, "shared wine creation must attach the uploaded label path");
 assert.match(dinnerDetail, /SortableCourseList/, "member dinner courses must be reorderable");
+assert.match(dinnerDetail, /reordering/, "member reorder controls must be opt-in instead of always occupying card space");
 assert.match(provider, /reorderCourses/, "app data must persist member course ordering");
 assert.match(migrations, /update_shared_dinner_menu/, "database must expose a capability-scoped menu update RPC");
 assert.match(migrations, /add_shared_dinner_wine/, "database must expose a capability-scoped wine pairing RPC");
+assert.match(migrations, /share links upload wine labels/, "storage must accept capability-scoped shared wine labels");
 assert.match(migrations, /course_wine_pairings/, "shared payload must include explicit dish-to-wine pairings");
 
 console.log("shared menu capabilities verified");
